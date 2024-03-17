@@ -1,10 +1,9 @@
 import cv2
 import win32gui, win32con, win32api
 import numpy as np
-from logic.capture import Config
-cfg = Config()
-from logic.capture import Capture
-from logic.mouse import MouseThread
+from logic.config_watcher import cfg
+from logic.capture import capture
+from logic.mouse import mouse
 
 def spawn_debug_window():
     cv2.namedWindow('antirecoil')
@@ -27,11 +26,11 @@ def init():
     if debug_window:
         spawn_debug_window()
         
-    mask_region = frames.Calculate_screen_offset(custom_region=(cfg.detection_window_width, cfg.detection_window_height))
+    mask_region = capture.Calculate_screen_offset(custom_region=(cfg.detection_window_width, cfg.detection_window_height))
     mask = create_mask(x=mask_region[0], y=int(mask_region[1]), width=int(mask_region[2]), height=int(mask_region[3] - 250), shape=(cfg.detection_window_height, cfg.detection_window_width))
     
     while True:
-        frame = frames.get_new_frame()
+        frame = capture.get_new_frame()
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         if mask_window:
@@ -64,16 +63,13 @@ def init():
                 if len(good_new) > 0:
                     movement_x = np.median(good_new[:, 0]) - np.median(good_old[:, 0])
                     movement_y = np.median(good_new[:, 1]) - np.median(good_old[:, 1])
-                    mouse_worker.move_mouse(x=movement_x * 1.3, y=movement_y * 1.3)
+                    mouse.move_mouse(x=movement_x * 1.3, y=movement_y * 1.3)
                     p0 = good_new.reshape(-1, 1, 2)
                 else:
                     pass # Optical flow error
                     first_frame = True
             first_frame = True
             old_gray = frame_gray.copy()
-
-        if mask_window:
-            cv2.imshow('antirecoil', resized)
             
         if debug_window:
             height = int(cfg.detection_window_height * cfg.debug_window_scale_percent / 100)
@@ -81,19 +77,18 @@ def init():
             dim = (width, height)
             cv2.resizeWindow('antirecoil', dim)
             resized = cv2.resize(frame, dim, cv2.INTER_NEAREST)
-            cv2.imshow('mask', frame_with_mask)
-        
+            if mask_window:
+                cv2.imshow('mask', frame_with_mask)
+            cv2.imshow('antirecoil', resized)
         if debug_window or mask_window:
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
 if __name__ == "__main__":
-    frames = Capture()
-    mouse_worker = MouseThread()
     
     feature_params = dict(maxCorners=200, qualityLevel=0.5, minDistance=10, blockSize=10)
     lk_params = dict(winSize=(50, 50), maxLevel=1, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 0.03))
 
-    debug_window = False
-    mask_window = False
+    debug_window = True
+    mask_window = True
     init()
